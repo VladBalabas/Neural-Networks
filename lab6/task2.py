@@ -1,4 +1,3 @@
-# ---------- Імпорти ----------
 import os
 import pandas as pd
 import numpy as np
@@ -14,13 +13,11 @@ from transformers import DataCollatorWithPadding
 from datasets import Dataset
 import evaluate
 
-# ---------- Шлях до файлів ----------
-DATA_DIR = 'D:/Python/NeuralN/lab6'  # ЗАМІНИ на свій шлях
+DATA_DIR = 'D:/Python/NeuralN/lab6'
 train_file = os.path.join(DATA_DIR, 'train.txt')
 test_file = os.path.join(DATA_DIR, 'test.txt')
 val_file = os.path.join(DATA_DIR, 'val.txt')
 
-# ---------- Завантаження даних ----------
 def load_data(file_path):
     df = pd.read_csv(file_path, header=None, names=['text', 'label'])
     return df
@@ -29,7 +26,6 @@ train_df = load_data(train_file)
 val_df = load_data(val_file)
 test_df = load_data(test_file)
 
-# ---------- Передобробка тексту ----------
 def preprocess_text(texts, method='none'):
     lemmatizer = WordNetLemmatizer()
     stemmer = PorterStemmer()
@@ -57,18 +53,15 @@ train_df['text'] = preprocess_text(train_df['text'], PREPROCESS_METHOD)
 val_df['text'] = preprocess_text(val_df['text'], PREPROCESS_METHOD)
 test_df['text'] = preprocess_text(test_df['text'], PREPROCESS_METHOD)
 
-# ---------- Кодування міток ----------
 label_encoder = LabelEncoder()
 train_df['label'] = label_encoder.fit_transform(train_df['label'])
 val_df['label'] = label_encoder.transform(val_df['label'])
 test_df['label'] = label_encoder.transform(test_df['label'])
 
-# ---------- Створення Dataset'ів ----------
 train_dataset = Dataset.from_pandas(train_df)
 val_dataset = Dataset.from_pandas(val_df)
 test_dataset = Dataset.from_pandas(test_df)
 
-# ---------- Токенізація ----------
 model_name = "youscan/ukr-roberta-base"
 tokenizer = RobertaTokenizer.from_pretrained(model_name)
 
@@ -79,7 +72,6 @@ train_dataset = train_dataset.map(tokenize_function, batched=True)
 val_dataset = val_dataset.map(tokenize_function, batched=True)
 test_dataset = test_dataset.map(tokenize_function, batched=True)
 
-# ---------- Завантаження моделі ----------
 model = RobertaForSequenceClassification.from_pretrained(model_name, num_labels=len(label_encoder.classes_))
 data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
 
@@ -94,7 +86,6 @@ def compute_metrics(eval_pred):
         "f1": f1_metric.compute(predictions=preds, references=labels, average="weighted")["f1"]
     }
 
-# ---------- Аргументи навчання ----------
 training_args = TrainingArguments(
     eval_strategy="epoch",
     save_strategy="epoch",
@@ -117,30 +108,32 @@ trainer = Trainer(
     compute_metrics=compute_metrics
 )
 
-# ---------- Навчання ----------
 trainer.train()
 
-# ---------- Оцінка ----------
 predictions = trainer.predict(test_dataset)
 y_pred = np.argmax(predictions.predictions, axis=1)
 y_true = predictions.label_ids
 
-# ---------- Звіт ----------
 print("\nClassification Report:")
 print(classification_report(y_true, y_pred, target_names=label_encoder.classes_))
 
-# ---------- Матриця плутанини ----------
 cm = confusion_matrix(y_true, y_pred)
-plt.figure(figsize=(10, 8))
-sns.heatmap(cm, annot=True, fmt="d", cmap="Blues",
+plt.figure(figsize=(12, 10))
+
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues',
             xticklabels=label_encoder.classes_,
-            yticklabels=label_encoder.classes_)
-plt.xlabel("Predicted")
-plt.ylabel("True")
-plt.title("Confusion Matrix")
+            yticklabels=label_encoder.classes_,
+            annot_kws={"size": 12})
+plt.xticks(rotation=45, ha='right', fontsize=12)
+plt.yticks(rotation=0, fontsize=12)
+
+plt.title('Confusion Matrix', fontsize=16, pad=20)
+plt.xlabel('Predicted Label', fontsize=14)
+plt.ylabel('True Label', fontsize=14)
+
+plt.tight_layout()
 plt.show()
 
-# ---------- Інтерактивне тестування ----------
 def interactive_test(model, tokenizer, label_encoder, preprocess_method='none'):
     print("\nІнтерактивне тестування (введіть 'quit' для виходу):")
     while True:
@@ -159,11 +152,9 @@ def interactive_test(model, tokenizer, label_encoder, preprocess_method='none'):
         for i, prob in enumerate(probs):
             print(f"  {label_encoder.classes_[i]}: {prob:.4f}")
 
-interactive_test(model, tokenizer, label_encoder, preprocess_method=PREPROCESS_METHOD)
 
 train_history = trainer.state.log_history
 
-# Отримуємо дані про епохи, точність, F1 і loss
 epochs = []
 train_loss = []
 eval_loss = []
@@ -182,31 +173,27 @@ for log in train_history:
             eval_f1.append(log["eval_f1"])
         epochs.append(log["epoch"])
 
-# Унікальні значення епох
-unique_epochs = sorted(set(epochs))
+history = {
+    'loss': train_loss,
+    'val_loss': eval_loss,
+    'accuracy': eval_accuracy,
+    'val_accuracy': eval_accuracy
+}
 
-# Побудова графіків
-plt.figure(figsize=(14, 6))
 
-# Графік loss
-plt.subplot(1, 2, 1)
-plt.plot(unique_epochs[:len(train_loss)], train_loss, label="Train Loss", marker='o')
-plt.plot(unique_epochs[:len(eval_loss)], eval_loss, label="Validation Loss", marker='o')
-plt.xlabel("Epoch")
-plt.ylabel("Loss")
-plt.title("Train & Validation Loss")
-plt.legend()
-plt.grid(True)
+def plot_training_history(history):
+    plt.figure(figsize=(6, 4))
 
-# Графік accuracy та f1
-plt.subplot(1, 2, 2)
-plt.plot(unique_epochs[:len(eval_accuracy)], eval_accuracy, label="Validation Accuracy", marker='o')
-plt.plot(unique_epochs[:len(eval_f1)], eval_f1, label="Validation F1", marker='o')
-plt.xlabel("Epoch")
-plt.ylabel("Score")
-plt.title("Validation Accuracy & F1")
-plt.legend()
-plt.grid(True)
+    plt.plot(history['loss'], label='Train Loss')
+    plt.plot(history['val_loss'], label='Validation Loss')
+    plt.title('Model Loss')
+    plt.ylabel('Loss')
+    plt.xlabel('Epoch')
+    plt.legend()
 
-plt.tight_layout()
-plt.show()
+    plt.tight_layout()
+    plt.show()
+
+plot_training_history(history)
+
+interactive_test(model, tokenizer, label_encoder, preprocess_method=PREPROCESS_METHOD)

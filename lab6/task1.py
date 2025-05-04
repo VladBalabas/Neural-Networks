@@ -202,4 +202,4 @@ def interactive_test(model, tokenizer, label_encoder, preprocess_method='none'):
             print(f"{class_name}: {prob:.4f}")
 
 
-interactive_test(model, tokenizer, label_encoder, preprocess_method=PREPROCESS_METHOD)
+# interactive_test(model, tokenizer, label_encoder, preprocess_method=PREPROCESS_METHOD)
